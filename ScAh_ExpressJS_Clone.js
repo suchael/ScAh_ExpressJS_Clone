@@ -1,106 +1,210 @@
-// A lightweight web framework inspired by Express.js
-// Built from scratch using Node.js core modules
-// Author: Success Ahmed (GitHub: suchael) | For Eculis Projects
-// Project Name: ScAh_ExpressJS_Clone
-
 const http = require("http");
-const URL = require("url");
+const { URL } = require("url");
 
 class ScAh_ExpressJS_Clone {
-	constructor() {
-		// Stores routes in the format: { 'METHOD /path': handlerFunction }
-		this.routes = {};
+  constructor() {
+    // Routes stored as array to preserve order and allow param matching
+    this.routes = [];
 
-		// Stores all global middleware functions
-		this.middlewareQueue = [];
-	}
+    // Middlewares with optional path prefix
+    // { path, fn }
+    this.middlewareQueue = [];
+  }
 
-	/**
-	 * Register a global middleware function
-	 * @param {Function} middleware - Function with (req, res, next)
-	 */
-	use(middleware) {
-		this.middlewareQueue.push(middleware);
-	}
+  // Register middleware: app.use(fn) or app.use(path, fn)
+  use(pathOrFn, maybeFn) {
+    if (typeof pathOrFn === "function") {
+      this.middlewareQueue.push({ path: "/", fn: pathOrFn });
+    } else if (typeof pathOrFn === "string" && typeof maybeFn === "function") {
+      this.middlewareQueue.push({ path: pathOrFn, fn: maybeFn });
+    } else {
+      throw new Error("Invalid arguments to use()");
+    }
+  }
 
-	/**
-	 * Define a GET route
-	 * @param {string} path 
-	 * @param {Function} handler 
-	 */
-	get(path, handler) {
-		this.routes[`GET ${path}`] = handler;
-	}
+  // Register routes
+  get(path, handler) {
+    this.routes.push({ method: "GET", path, handler });
+  }
 
-	/**
-	 * Define a POST route
-	 * @param {string} path 
-	 * @param {Function} handler 
-	 */
-	post(path, handler) {
-		this.routes[`POST ${path}`] = handler;
-	}
+  post(path, handler) {
+    this.routes.push({ method: "POST", path, handler });
+  }
 
-	/**
-	 * Start the HTTP server
-	 * @param {number} port 
-	 * @param {Function} callback 
-	 */
-	listen(port, callback) {
-		const server = http.createServer((req, res) => {
-			const { method, url } = req;
-			const parsedUrl = URL.parse(url, true); // true = parse query into object
+  // Match route and extract params
+  matchRoute(method, pathname) {
+    for (const route of this.routes) {
+      if (route.method !== method) continue;
 
-			const routeKey = `${method} ${parsedUrl.pathname}`;
-			const routeHandler = this.routes[routeKey];
+      const routeParts = route.path.split("/").filter(Boolean);
+      const urlParts = pathname.split("/").filter(Boolean);
 
-			// Log current request details
-			console.log("Request route key:", routeKey);
-			console.log("Raw URL:", url);
+      if (routeParts.length !== urlParts.length) continue;
 
-			// Attach query object to req, like Express does (e.g., req.query.name)
-			req.query = parsedUrl.query;
+      let params = {};
+      let matched = true;
 
-			// Extend res with status(), send(), and json() methods
-			res.statusCode = 200; // default status
+      for (let i = 0; i < routeParts.length; i++) {
+        if (routeParts[i].startsWith(":")) {
+          const paramName = routeParts[i].slice(1);
+          params[paramName] = decodeURIComponent(urlParts[i]);
+        } else if (routeParts[i] !== urlParts[i]) {
+          matched = false;
+          break;
+        }
+      }
 
-			res.status = function (statusCode) {
-				this.statusCode = statusCode;
-				return this;
-			};
+      if (matched) return { handler: route.handler, params };
+    }
+    return null;
+  }
 
-			res.send = function (data) {
-				this.writeHead(this.statusCode, { "Content-Type": "text/plain" });
-				this.end(data);
-				return this;
-			};
+  // Built-in body parser middleware (JSON + urlencoded)
+  jsonBodyParser() {
+    return (req, res, next) => {
+      const method = req.method.toUpperCase();
+      if (method === "POST" || method === "PUT" || method === "PATCH") {
+        const contentType = (req.headers["content-type"] || "").toLowerCase();
+        const chunks = [];
 
-			res.json = function (data) {
-				this.writeHead(this.statusCode, { "Content-Type": "application/json" });
-				this.end(JSON.stringify(data));
-				return this;
-			};
+        req.on("data", chunk => chunks.push(chunk));
 
-			// Execute middleware chain recursively
-			const executeMiddlewares = (index) => {
-				if (index < this.middlewareQueue.length) {
-					const middleware = this.middlewareQueue[index];
-					middleware(req, res, () => executeMiddlewares(index + 1));
-				} else {
-					if (routeHandler) {
-						routeHandler(req, res);
-					} else {
-						// Fallback for unmatched routes
-						res.status(404).send("Route not found");
-					}
-				}
-			};
+        req.on("end", () => {
+          const rawBody = Buffer.concat(chunks);
+          try {
+            if (contentType.includes("application/json")) {
+              req.body = rawBody.length ? JSON.parse(rawBody.toString("utf8")) : {};
+            } else if (contentType.includes("application/x-www-form-urlencoded")) {
+              const parsed = rawBody.toString("utf8").split("&").reduce((acc, pair) => {
+                if (!pair) return acc;
+                const [key, val] = pair.split("=");
+                acc[decodeURIComponent(key)] = decodeURIComponent(val || "");
+                return acc;
+              }, {});
+              req.body = parsed;
+            } else {
+              req.body = rawBody; // raw Buffer fallback
+            }
+            next();
+          } catch (err) {
+            next(err);
+          }
+        });
 
-			executeMiddlewares(0);
-		});
+        req.on("error", (err) => {
+          next(err);
+        });
+      } else {
+        req.body = {};
+        next();
+      }
+    };
+  }
 
-		server.listen(port, callback);
-	}
+  // Extend res object with Express-like helpers
+  extendRes(res) {
+    res.statusCode = 200;
+    res.status = function (code) {
+      this.statusCode = code;
+      return this;
+    };
+    res.send = function (data) {
+      if (typeof data === "object" && !Buffer.isBuffer(data)) {
+        this.setHeader("Content-Type", "application/json");
+        this.end(JSON.stringify(data));
+      } else if (Buffer.isBuffer(data)) {
+        this.setHeader("Content-Type", "application/octet-stream");
+        this.end(data);
+      } else {
+        this.setHeader("Content-Type", "text/plain");
+        this.end(data);
+      }
+      return this;
+    };
+    res.json = function (obj) {
+      this.setHeader("Content-Type", "application/json");
+      this.end(JSON.stringify(obj));
+      return this;
+    };
+  }
+
+  // Check if middleware matches request path prefix
+  middlewareMatches(mwPath, reqPath) {
+    if (mwPath === "/") return true;
+    if (!reqPath.startsWith(mwPath)) return false;
+    // Ensure matching segment boundaries:
+    // e.g. mwPath /api matches /api/users but not /apis
+    if (reqPath.length > mwPath.length && reqPath[mwPath.length] !== "/") {
+      return false;
+    }
+    return true;
+  }
+
+  listen(port, callback) {
+    const server = http.createServer((req, res) => {
+      const fullUrl = new URL(req.url, `http://${req.headers.host}`);
+
+      req.query = Object.fromEntries(fullUrl.searchParams.entries());
+      req.path = fullUrl.pathname;
+
+      this.extendRes(res);
+
+      const matched = this.matchRoute(req.method, req.path);
+      if (matched) req.params = matched.params;
+      else req.params = {};
+
+      // Compose middleware + route handler chain:
+      // Only add middleware whose path matches req.path
+      const middlewares = this.middlewareQueue
+        .filter(({ path }) => this.middlewareMatches(path, req.path))
+        .map(({ fn }) => fn);
+
+      // Add matched route handler or 404 handler last
+      if (matched && matched.handler) {
+        middlewares.push(matched.handler);
+      } else {
+        middlewares.push((req, res) => {
+          res.status(404).send("Route not found");
+        });
+      }
+
+      // Middleware chain executor
+      let idx = 0;
+      const next = (err) => {
+        if (err) {
+          // Find next error middleware (fn with 4 args)
+          while (idx < middlewares.length) {
+            const fn = middlewares[idx++];
+            if (fn.length === 4) {
+              // error middleware signature (err, req, res, next)
+              return fn(err, req, res, next);
+            }
+          }
+          // No error middleware found, send generic error
+          res.statusCode = 500;
+          return res.end(`Internal Server Error: ${err.message || err}`);
+        }
+
+        if (idx >= middlewares.length) return;
+
+        try {
+          const fn = middlewares[idx++];
+          if (fn.length === 4) {
+            // skip error middleware if no error passed
+            next();
+          } else {
+            fn(req, res, next);
+          }
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      next();
+    });
+
+    server.listen(port, callback);
+  }
 }
 
 module.exports = ScAh_ExpressJS_Clone;

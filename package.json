@@ -1,7 +1,7 @@
 {
   "name": "scah_expressjs_clone",
   "version": "1.0.0",
-  "description": "ScAh_ExpressJS_Clone is a minimal web framework built with pure Node.js HTTP, inspired by Express.js.",
+  "description": "ScAh_ExpressJS_Clone is a clone of Express.js framework. I built it from scratch using only Node.js core architecture. No external libraries",
   "main": "ScAh_ExpressJS_Clone.js",
   "scripts": {
     "start": "node example.js",

@@ -29,18 +29,19 @@ It’s built from scratch to replicate Express.js in order to help further my un
    - `res.json()`  
 5. Parse query parameters (e.g., `/search?q=hello` → `req.query.q`)  
 6. Chain middleware and route handlers like Express  
+7. **Parse JSON and urlencoded request bodies via built-in body-parser middleware (use `app.use(app.jsonBodyParser())`)**  
+8. **Basic error-handling middleware support (middleware with 4 args: `(err, req, res, next)`)**  
 
 ---
 
 ## ❌ What It Can’t Do Yet (In Progress)
 
-1. No built-in body parsing (e.g., `req.body` for POST data)  
-2. No route parameter parsing (e.g., `/user/:id`)  
-3. No support for advanced HTTP methods like `PUT`, `DELETE`, `PATCH`  
-4. No routing abstraction (like `Router()`)  
-5. No support for templating engines or serving static files  
-6. No error-handling middleware  
-7. No `async/await` middleware support  
+1. Route parameter parsing (e.g., `/user/:id`)  
+2. Support for advanced HTTP methods like `PUT`, `DELETE`, `PATCH`  
+3. Routing abstraction (like `Router()`)  
+4. Support for templating engines or serving static files  
+5. Fully featured error-handling capabilities  
+6. Async/await middleware support  
 
 ---
 
@@ -51,29 +52,38 @@ const ScAh_ExpressJS_Clone = require("./ScAh_ExpressJS_Clone");
 
 const app = new ScAh_ExpressJS_Clone();
 
-// 1. Example middleware usage
+// 1. Built-in JSON body parser middleware
+app.use(app.jsonBodyParser());
+
+// 2. Example middleware usage
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
-// 2. Example using a GET request
+// 3. GET request example
 app.get("/", (req, res) => {
   res.status(200).send("Welcome to ScAh_ExpressJS_Clone!");
 });
 
-// 3. Example testing a query from a GET request
+// 4. GET with query params example
 app.get("/hello", (req, res) => {
   const name = req.query.name || "Guest";
   res.json({ message: `Hello, ${name}` });
 });
 
-// 4. Example POST request
+// 5. POST request with body parsing example
 app.post("/submit", (req, res) => {
-  res.status(201).send("Form submitted!");
+  res.status(201).json({ message: "Form submitted!", receivedBody: req.body });
 });
 
-// 5. Starting the server
+// 6. Error handling middleware example
+app.use((err, req, res, next) => {
+  console.error("Error caught:", err);
+  res.status(500).send("Something went wrong!");
+});
+
+// 7. Start the server
 app.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
 });
