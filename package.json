@@ -1,0 +1,28 @@
+{
+  "name": "scah_expressjs_clone",
+  "version": "1.0.0",
+  "description": "ScAh_ExpressJS_Clone is a minimal web framework built with pure Node.js HTTP, inspired by Express.js.",
+  "main": "ScAh_ExpressJS_Clone.js",
+  "scripts": {
+    "start": "node example.js",
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suchael/ScAh_ExpressJS_Clone.git"
+  },
+  "keywords": [
+    "express-clone",
+    "nodejs-framework",
+    "http",
+    "learning-project",
+    "ScAh",
+    "minimal-express"
+  ],
+  "author": "Success Ahmed <success@eculis.com> (https://github.com/suchael)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/suchael/ScAh_ExpressJS_Clone/issues"
+  },
+  "homepage": "https://github.com/suchael/ScAh_ExpressJS_Clone#readme"
+}
